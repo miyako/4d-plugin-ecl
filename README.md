@@ -5,3 +5,11 @@
 
 # 4d-plugin-ecl
 Use [ECL (Embeddable Common-Lisp)](https://common-lisp.net/project/ecl/main.html) in 4D.
+
+### Usage
+
+```4d
+$lisp:="(format t \"こんにちは せかい\")\")"
+
+$status:=lisp ($lisp;$options)
+```
