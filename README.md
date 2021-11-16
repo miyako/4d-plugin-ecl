@@ -18,3 +18,7 @@ $status:=lisp ($lisp)
 
 * [fib_table.h throws a precompiler error](https://gitlab.com/embeddable-common-lisp/ecl/-/issues/213)
 * [Windows10でECLをビルド](https://qiita.com/NOEU/items/3a6ad5405a8cf5a66741)
+
+### Similar projects
+
+* https://github.com/miyako/4d-plugin-script
