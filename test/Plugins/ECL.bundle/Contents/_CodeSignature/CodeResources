@@ -8,7 +8,7 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			2syIl79pofXyLAZ0qv0uDXrt6eg=
+			ovDYzV2OLi81iR7DssFbfCLwXcI=
 			</data>
 			<key>optional</key>
 			<true/>
@@ -71,7 +71,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			qBYkHmM/ag6fKmH0O7CiuJJhHC+6pDHRdK4vYv9t/wY=
+			PAecJ/nR9FV1NrYuMNRwO8ZnsEXbsXNfEEBO5AbQjYs=
 			</data>
 			<key>optional</key>
 			<true/>
@@ -90,18 +90,18 @@
 			C8+eV53xmJRlzopBWdnxS6gO7W1YlUsAMrr2S4PQvBE=
 			</data>
 		</dict>
-		<key>Windows/ECL.4DX</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			ZCCEqtPmUM+2iJDxTvuZrd5mchV7dH5Z4RZvNF7YQT0=
-			</data>
-		</dict>
 		<key>Windows64/ECL.4DX</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			xZ0isPdvytfz/ISMhvmTet0RKxwRCg6HeDepN7N2icI=
+			3o93wxktUarWf9KcxwGU/nOyAPmkGZd5KDPz1OonrUc=
+			</data>
+		</dict>
+		<key>Windows64/ecl.dll</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			UAv0aduS7DYr62Yd9OkubPOS2WZXxIZ/Fpsz3m1G9b0=
 			</data>
 		</dict>
 	</dict>
