@@ -1,0 +1,11 @@
+{
+    "name": "ECL",
+    "id": 20000,
+    "commands": [
+        {
+            "theme": "ECL",
+            "syntax": "lisp(&T;&J):J",
+            "threadSafe": true
+        }
+    ]
+}
