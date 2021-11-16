@@ -13,3 +13,8 @@ $lisp:="(format t \"こんにちは せかい\")\")"
 
 $status:=lisp ($lisp)
 ```
+
+#### 参考記事
+
+* [fib_table.h throws a precompiler error](https://gitlab.com/embeddable-common-lisp/ecl/-/issues/213)
+* [Windows10でECLをビルド](https://qiita.com/NOEU/items/3a6ad5405a8cf5a66741)
