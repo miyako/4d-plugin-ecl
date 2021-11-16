@@ -11,5 +11,5 @@ Use [ECL (Embeddable Common-Lisp)](https://common-lisp.net/project/ecl/main.html
 ```4d
 $lisp:="(format t \"こんにちは せかい\")\")"
 
-$status:=lisp ($lisp;$options)
+$status:=lisp ($lisp)
 ```
