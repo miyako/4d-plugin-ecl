@@ -22,3 +22,7 @@ $status:=lisp ($lisp)
 ### Similar projects
 
 * https://github.com/miyako/4d-plugin-script
+
+### Next
+
+* https://github.com/ChaiScript/ChaiScript
