@@ -14,12 +14,31 @@
 
 static char *argv = (char *)"lisp";
 
-static void shutdown() {
-    cl_shutdown();
+static void OnSartup() {
+    cl_boot(1, &argv);
 }
 
-static void boot() {
-    cl_boot(1, &argv);
+//cl_shutdown
+static void OnExit() {
+	ecl_import_current_thread(ECL_NIL, ECL_NIL);
+	if (ecl_get_option(ECL_OPT_BOOTED) > 0) {
+		cl_object l = ecl_symbol_value(ECL_SYM("SI::*EXIT-HOOKS*", 1533));
+		cl_object form = cl_list(2, ECL_SYM("FUNCALL", 396), ECL_NIL);
+		while (CONSP(l)) {
+			ecl_elt_set(form, 1, ECL_CONS_CAR(l));
+			si_safe_eval(3, form, ECL_NIL, OBJNULL);
+			l = CDR(l);
+			ECL_SET(ECL_SYM("SI::*EXIT-HOOKS*", 1533), l);
+		}
+#ifdef ENABLE_DLOPEN
+		ecl_library_close_all();
+#endif
+#ifdef ECL_TCP
+		ecl_tcp_close_all();
+#endif
+	}
+	ecl_set_option(ECL_OPT_BOOTED, -1);
+	ecl_release_current_thread();
 }
 
 void PluginMain(PA_long32 selector, PA_PluginParameters params) {
@@ -30,12 +49,12 @@ void PluginMain(PA_long32 selector, PA_PluginParameters params) {
         {
             case kInitPlugin:
             case kServerInitPlugin:
-                PA_RunInMainProcess((PA_RunInMainProcessProcPtr)boot    , NULL);
+                PA_RunInMainProcess((PA_RunInMainProcessProcPtr)OnSartup, NULL);//necessary on windows
                 break;
                 
             case kDeinitPlugin:
             case kServerDeinitPlugin:
-                PA_RunInMainProcess((PA_RunInMainProcessProcPtr)shutdown, NULL);
+                OnExit();//necessary on windows
                 break;
 
 			// --- ECL
