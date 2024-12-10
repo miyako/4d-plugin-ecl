@@ -1,5 +1,5 @@
 //%attributes = {}
-$lisp:="(format t \"こんにちは せかい\")\")"
+$lisp:="\r;;\r;;\r;;\r;;実行例\n(format t \"こんにちは せかい\")\")"
 
 $status:=lisp($lisp; $options)
 
