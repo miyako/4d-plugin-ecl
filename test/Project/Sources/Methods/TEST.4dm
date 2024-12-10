@@ -1,7 +1,7 @@
 //%attributes = {}
-$lisp:="(format t \"こんにちは せかい\")\")"
+$lisp:=Get text from pasteboard:C524  //"(format t \"こんにちは せかい\")\")"
 
-$status:=lisp ($lisp;$options)
+$status:=lisp($lisp; $options)
 
 /*
 
