@@ -1,2 +1,5 @@
 build/*
 test/userPreferences.*
+test/Data/data.4DD
+test/Project/DerivedData/*
+test/Data/data.journal
