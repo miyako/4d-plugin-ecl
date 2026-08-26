@@ -14,7 +14,7 @@
 
 static char *argv = (char *)"lisp";
 
-static void OnSartup() {
+static void OnStartup() {
     cl_boot(1, &argv);
 }
 
@@ -49,7 +49,7 @@ void PluginMain(PA_long32 selector, PA_PluginParameters params) {
         {
             case kInitPlugin:
             case kServerInitPlugin:
-                PA_RunInMainProcess((PA_RunInMainProcessProcPtr)OnSartup, NULL);//necessary on windows
+                PA_RunInMainProcess((PA_RunInMainProcessProcPtr)OnStartup, NULL);//necessary on windows
                 break;
                 
             case kDeinitPlugin:
@@ -79,20 +79,34 @@ static void get_output(PA_ObjectRef status, const wchar_t *std, cl_object os) {
     cl_object o = cl_get_output_stream_string(os);
     CUTF32String u32 = CUTF32String((const ecl_character *)o->string.self, o->string.dim);
     
-    uint32_t len = (uint32_t)(u32.length() * sizeof(ecl_character)) + sizeof(ecl_character);
+    //size_t (not uint32_t) avoids wraparound if the lisp script printed a very large amount of output
+    size_t len = (u32.length() * sizeof(ecl_character)) + sizeof(ecl_character);
     std::vector<uint8_t> buf(len);
     
-    len = PA_ConvertCharsetToCharset(
-                                     (char *)u32.data(),
-                                     (PA_long32)u32.length() * sizeof(ecl_character),
-                                     eVTC_UTF_32,
-                                     (char *)&buf[0],
-                                     len,
-                                     eVTC_UTF_8
-                                     );
-    std::string u8 = (const char *)&buf[0];
-    
-    ob_set_s(status, std, u8.c_str());
+    if(u32.length() > 0){
+        
+        PA_long32 out_len = PA_ConvertCharsetToCharset(
+                                                        (char *)u32.data(),
+                                                        (PA_long32)(u32.length() * sizeof(ecl_character)),
+                                                        eVTC_UTF_32,
+                                                        (char *)&buf[0],
+                                                        (PA_long32)len,
+                                                        eVTC_UTF_8
+                                                        );
+        
+        if(out_len > 0){
+            //build with an explicit length rather than relying on the buffer happening to be
+            //NUL-terminated -- output containing an embedded NUL would otherwise be truncated
+            std::string u8((const char *)&buf[0], (size_t)out_len);
+            ob_set_s(status, std, u8.c_str());
+        }else{
+            //conversion failed -- report that rather than silently claiming empty output
+            ob_set_s(status, std, "(unable to convert output to UTF-8)");
+        }
+        
+    }else{
+        ob_set_s(status, std, "");
+    }
 }
 
 #pragma mark -
@@ -101,30 +115,47 @@ void lisp(PA_PluginParameters params) {
     
     PA_ObjectRef status = PA_CreateObject();
     
+    if(!status){
+        //nothing we can build a response in; bail rather than dereference a null object
+        return;
+    }
+    
     ob_set_b(status, L"success", false);
     
     std::string lisp;
     
     PA_Unistring *arg1 = PA_GetStringParameter(params, 1);
-    if(arg1){
-        CUTF16String u16 = (const PA_Unichar *)PA_GetUnistring(arg1);
-        u16_to_u8(u16, lisp);
+    if(!arg1){
+        ob_set_s(status, L"stderr", "missing lisp expression (parameter 1)");
+        PA_ReturnObject(params, status);
+        return;
     }
     
-    uint32_t len = (uint32_t)(lisp.length() * 6 * sizeof(uint8_t)) + sizeof(uint8_t);
+    CUTF16String u16 = (const PA_Unichar *)PA_GetUnistring(arg1);
+    u16_to_u8(u16, lisp);
+    
+    //size_t (not uint32_t) avoids wraparound on a very long source string
+    size_t len = (lisp.length() * 6 * sizeof(uint8_t)) + sizeof(uint8_t);
     std::vector<uint8_t> buf(len);
     
-    len = PA_ConvertCharsetToCharset(
-                                     (char *)lisp.data(),
-                                     (PA_long32)lisp.length() * sizeof(uint8_t),
-                                     eVTC_UTF_8,
-                                     (char *)&buf[0],
-                                     len,
-                                     eVTC_UTF_32
-                                     );
+    PA_long32 out_len = PA_ConvertCharsetToCharset(
+                                                    (char *)lisp.data(),
+                                                    (PA_long32)(lisp.length() * sizeof(uint8_t)),
+                                                    eVTC_UTF_8,
+                                                    (char *)&buf[0],
+                                                    (PA_long32)len,
+                                                    eVTC_UTF_32
+                                                    );
+    
+    if(out_len <= 0 && !lisp.empty()){
+        ob_set_s(status, L"stderr", "unable to convert lisp expression to UTF-32");
+        PA_ReturnObject(params, status);
+        return;
+    }
+    
     CUTF32String u32 = (const ecl_character *)&buf[0];
     
-    cl_object lisp32 = ecl_alloc_simple_extended_string(len);
+    cl_object lisp32 = ecl_alloc_simple_extended_string(u32.length());
 
     for (cl_index i = 0;  i < u32.length();  ++i) {
         lisp32->string.self[i] = u32.at(i);
@@ -155,14 +186,24 @@ void lisp(PA_PluginParameters params) {
              ecl_make_symbol("*ERROR-OUTPUT*", "COMMON-LISP"),
              es);
     
-    cl_object form = si_string_to_object(1, lisp32);
-    
-    cl_object error = NULL;
-    
-    si_safe_eval(3, form, ECL_NIL, error);
-    
-    if(!error) {
-        ob_set_b(status, L"success", true);
+    try
+    {
+        cl_object form = si_string_to_object(1, lisp32);
+        
+        //si_safe_eval's return value is what indicates success/failure: it returns the sentinel
+        //passed as the third argument (OBJNULL here) if evaluation failed, or the evaluated
+        //result otherwise. (The previous version passed a local NULL cl_object by value and
+        //checked that same untouched local afterwards, which can never reflect what happened
+        //inside the call -- success was reported unconditionally.)
+        cl_object result = si_safe_eval(3, form, ECL_NIL, OBJNULL);
+        
+        ob_set_b(status, L"success", result != OBJNULL);
+    }
+    catch(...)
+    {
+        //an exception here (e.g. from a malformed form) must not prevent 4D from getting a
+        //response -- fall through and still return whatever stdout/stderr was captured
+        ob_set_b(status, L"success", false);
     }
 
     get_output(status, L"stdout", os);
