@@ -25,7 +25,8 @@ void ob_set_p(PA_ObjectRef obj, const wchar_t *_key, PA_Picture value) {
     {
         if(value)
         {
-            PA_Variable v = PA_CreateVariable(eVK_Picture);
+            //eVK_Undefined: a typed create (eVK_Picture/eVK_Unistring) allocates an empty value that the shallow setter below would overwrite and leak
+            PA_Variable v = PA_CreateVariable(eVK_Undefined);
             CUTF16String ukey;
             json_wconv(_key, &ukey);
             PA_Unistring key = PA_CreateUnistring((PA_Unichar *)ukey.c_str());
@@ -86,7 +87,8 @@ void ob_set_s(PA_ObjectRef obj, const char *_key, const char *_value) {
         PA_Unistring key = PA_CreateUnistring((PA_Unichar *)u16k.c_str());
         PA_Unistring value = PA_CreateUnistring((PA_Unichar *)u16v.c_str());
         
-        PA_Variable v = PA_CreateVariable(eVK_Unistring);
+        //eVK_Undefined: a typed create (eVK_Picture/eVK_Unistring) allocates an empty value that the shallow setter below would overwrite and leak
+        PA_Variable v = PA_CreateVariable(eVK_Undefined);
         PA_SetStringVariable(&v, &value);
         PA_SetObjectProperty(obj, &key, v);
         
@@ -103,7 +105,8 @@ void ob_set_s(PA_ObjectRef obj, const wchar_t *_key, const char *_value) {
     {
         if(_value)
         {
-            PA_Variable v = PA_CreateVariable(eVK_Unistring);
+            //eVK_Undefined: a typed create (eVK_Picture/eVK_Unistring) allocates an empty value that the shallow setter below would overwrite and leak
+            PA_Variable v = PA_CreateVariable(eVK_Undefined);
             CUTF16String ukey;
             
             json_wconv(_key, &ukey);
@@ -149,7 +152,8 @@ void ob_set_a(PA_ObjectRef obj, const wchar_t *_key, CUTF16String *value) {
     
     if(obj)
     {
-            PA_Variable v = PA_CreateVariable(eVK_Unistring);
+            //eVK_Undefined: a typed create (eVK_Picture/eVK_Unistring) allocates an empty value that the shallow setter below would overwrite and leak
+            PA_Variable v = PA_CreateVariable(eVK_Undefined);
             CUTF16String ukey;
             json_wconv(_key, &ukey);
  
@@ -170,7 +174,8 @@ void ob_set_a(PA_ObjectRef obj, const wchar_t *_key, const wchar_t *_value) {
     {
         if(_value)
         {
-            PA_Variable v = PA_CreateVariable(eVK_Unistring);
+            //eVK_Undefined: a typed create (eVK_Picture/eVK_Unistring) allocates an empty value that the shallow setter below would overwrite and leak
+            PA_Variable v = PA_CreateVariable(eVK_Undefined);
             CUTF16String ukey;
             CUTF16String uvalue;
             json_wconv(_key, &ukey);
@@ -484,44 +489,50 @@ bool ob_get_s(PA_ObjectRef obj, const wchar_t *_key, CUTF8String *value) {
         {
             is_defined = false;
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Unistring)
+            //the result is owned (a copy, or a retained object/collection reference) and must be cleared;
+            //it is not initialised when the call fails, so only read or clear it on success
+            if(PA_GetLastError() == eER_NoErr)
             {
-                is_defined = true;
-                PA_Unistring uvalue = PA_GetStringVariable(v);
+                if(PA_GetVariableKind(v) == eVK_Unistring)
+                {
+                    is_defined = true;
+                    PA_Unistring uvalue = PA_GetStringVariable(v);
                 
-                CUTF16String u = CUTF16String(uvalue.fString, uvalue.fLength);
+                    CUTF16String u = CUTF16String(uvalue.fString, uvalue.fLength);
 #ifdef _WIN32
-                int len = WideCharToMultiByte(CP_UTF8, 0, (LPCWSTR)u.c_str(), u.length(), NULL, 0, NULL, NULL);
+                    int len = WideCharToMultiByte(CP_UTF8, 0, (LPCWSTR)u.c_str(), u.length(), NULL, 0, NULL, NULL);
                 
-                if(len){
-                    std::vector<uint8_t> buf(len + 1);
-                    if(WideCharToMultiByte(CP_UTF8, 0, (LPCWSTR)u.c_str(), u.length(), (LPSTR)&buf[0], len, NULL, NULL)){
-                        *value = CUTF8String((const uint8_t *)&buf[0]);
+                    if(len){
+                        std::vector<uint8_t> buf(len + 1);
+                        if(WideCharToMultiByte(CP_UTF8, 0, (LPCWSTR)u.c_str(), u.length(), (LPSTR)&buf[0], len, NULL, NULL)){
+                            *value = CUTF8String((const uint8_t *)&buf[0]);
+                        }
+                    }else{
+                        *value = CUTF8String((const uint8_t *)"");
                     }
-                }else{
-                    *value = CUTF8String((const uint8_t *)"");
-                }
                 
 #else
-                CFStringRef str = CFStringCreateWithCharacters(kCFAllocatorDefault, (const UniChar *)u.c_str(), u.length());
-                if(str){
+                    CFStringRef str = CFStringCreateWithCharacters(kCFAllocatorDefault, (const UniChar *)u.c_str(), u.length());
+                    if(str){
                     
-                    size_t size = CFStringGetMaximumSizeForEncoding(
-                                                                    CFStringGetLength(str),
-                                                                    kCFStringEncodingUTF8) + sizeof(uint8_t);
-                    std::vector<uint8_t> buf(size);
-                    CFIndex len = 0;
-                    CFStringGetBytes(str,
-                                     CFRangeMake(
-                                                 0,
-                                                 CFStringGetLength(str)),
-                                     kCFStringEncodingUTF8,
-                                     0, true, (UInt8 *)&buf[0], size, &len);
+                        size_t size = CFStringGetMaximumSizeForEncoding(
+                                                                        CFStringGetLength(str),
+                                                                        kCFStringEncodingUTF8) + sizeof(uint8_t);
+                        std::vector<uint8_t> buf(size);
+                        CFIndex len = 0;
+                        CFStringGetBytes(str,
+                                         CFRangeMake(
+                                                     0,
+                                                     CFStringGetLength(str)),
+                                         kCFStringEncodingUTF8,
+                                         0, true, (UInt8 *)&buf[0], size, &len);
                     
-                    *value = CUTF8String((const uint8_t *)&buf[0], len);
-                    CFRelease(str);
-                }
+                        *value = CUTF8String((const uint8_t *)&buf[0], len);
+                        CFRelease(str);
+                    }
 #endif
+                }
+                PA_ClearVariable(&v);
             }
         }
         
@@ -546,11 +557,17 @@ bool ob_get_a(PA_ObjectRef obj, const wchar_t *_key, CUTF16String *value) {
         {
             is_defined = false;
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Unistring)
+            //the result is owned (a copy, or a retained object/collection reference) and must be cleared;
+            //it is not initialised when the call fails, so only read or clear it on success
+            if(PA_GetLastError() == eER_NoErr)
             {
-                is_defined = true;
-                PA_Unistring uvalue = PA_GetStringVariable(v);
-                *value = CUTF16String(uvalue.fString, uvalue.fLength);
+                if(PA_GetVariableKind(v) == eVK_Unistring)
+                {
+                    is_defined = true;
+                    PA_Unistring uvalue = PA_GetStringVariable(v);
+                    *value = CUTF16String(uvalue.fString, uvalue.fLength);
+                }
+                PA_ClearVariable(&v);
             }
         }
         
@@ -576,10 +593,16 @@ bool ob_get_d(PA_ObjectRef obj, const wchar_t *_key, short *dd, short *mm, short
             is_defined = false;
 
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if (PA_GetVariableKind(v) == eVK_Date)
+            //the result is owned (a copy, or a retained object/collection reference) and must be cleared;
+            //it is not initialised when the call fails, so only read or clear it on success
+            if(PA_GetLastError() == eER_NoErr)
             {
-                is_defined = true;
-                PA_GetDateVariable(v, dd, mm, yyyy);
+                if (PA_GetVariableKind(v) == eVK_Date)
+                {
+                    is_defined = true;
+                    PA_GetDateVariable(v, dd, mm, yyyy);
+                }
+                PA_ClearVariable(&v);
             }
         }
 
@@ -602,9 +625,15 @@ bool ob_get_b(PA_ObjectRef obj, const wchar_t *_key) {
         if(PA_HasObjectProperty(obj, &key))
         {
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Boolean)
+            //the result is owned (a copy, or a retained object/collection reference) and must be cleared;
+            //it is not initialised when the call fails, so only read or clear it on success
+            if(PA_GetLastError() == eER_NoErr)
             {
-                value = PA_GetBooleanVariable(v);
+                if(PA_GetVariableKind(v) == eVK_Boolean)
+                {
+                    value = PA_GetBooleanVariable(v);
+                }
+                PA_ClearVariable(&v);
             }
         }
         
@@ -627,9 +656,15 @@ double ob_get_n(PA_ObjectRef obj, const wchar_t *_key) {
         if(PA_HasObjectProperty(obj, &key))
         {
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Real)
+            //the result is owned (a copy, or a retained object/collection reference) and must be cleared;
+            //it is not initialised when the call fails, so only read or clear it on success
+            if(PA_GetLastError() == eER_NoErr)
             {
-                value = PA_GetRealVariable(v);
+                if(PA_GetVariableKind(v) == eVK_Real)
+                {
+                    value = PA_GetRealVariable(v);
+                }
+                PA_ClearVariable(&v);
             }
         }
         
@@ -639,6 +674,7 @@ double ob_get_n(PA_ObjectRef obj, const wchar_t *_key) {
     return value;
 }
 
+//returns a reference borrowed from obj (valid while obj holds the object); retain it to keep it longer
 PA_ObjectRef ob_get_o(PA_ObjectRef obj, const wchar_t *_key) {
 
     PA_ObjectRef value = NULL;
@@ -652,9 +688,15 @@ PA_ObjectRef ob_get_o(PA_ObjectRef obj, const wchar_t *_key) {
         if(PA_HasObjectProperty(obj, &key))
         {
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Object)
+            //the result is owned (a copy, or a retained object/collection reference) and must be cleared;
+            //it is not initialised when the call fails, so only read or clear it on success
+            if(PA_GetLastError() == eER_NoErr)
             {
-                value = PA_GetObjectVariable(v);
+                if(PA_GetVariableKind(v) == eVK_Object)
+                {
+                    value = PA_GetObjectVariable(v);
+                }
+                PA_ClearVariable(&v);
             }
         }
         
@@ -663,6 +705,7 @@ PA_ObjectRef ob_get_o(PA_ObjectRef obj, const wchar_t *_key) {
     return value;
 }
 
+//returns a reference borrowed from obj (valid while obj holds the collection); retain it to keep it longer
 PA_CollectionRef ob_get_c(PA_ObjectRef obj, const wchar_t *_key) {
     
     PA_CollectionRef value = NULL;
@@ -676,9 +719,15 @@ PA_CollectionRef ob_get_c(PA_ObjectRef obj, const wchar_t *_key) {
         if(PA_HasObjectProperty(obj, &key))
         {
             PA_Variable v = PA_GetObjectProperty(obj, &key);
-            if(PA_GetVariableKind(v) == eVK_Collection)
+            //the result is owned (a copy, or a retained object/collection reference) and must be cleared;
+            //it is not initialised when the call fails, so only read or clear it on success
+            if(PA_GetLastError() == eER_NoErr)
             {
-                value = PA_GetCollectionVariable(v);
+                if(PA_GetVariableKind(v) == eVK_Collection)
+                {
+                    value = PA_GetCollectionVariable(v);
+                }
+                PA_ClearVariable(&v);
             }
         }
         
@@ -693,7 +742,12 @@ void ob_stringify(PA_ObjectRef obj, CUTF8String *value) {
     _params[0] = PA_CreateVariable(eVK_Object);
     PA_SetObjectVariable(&_params[0], PA_DuplicateObject(obj));
     PA_Variable vjson = PA_ExecuteCommandByID( /*JSON Stringify */1217, _params, 1);
+    //the result is owned, but it is not initialised when the command fails: capture the error first
+    PA_ErrorCode err = PA_GetLastError();
     PA_ClearVariable(&_params[0]);
+    
+    if(err != eER_NoErr)
+        return;
     
     PA_Unistring ujson = PA_GetStringVariable(vjson);
     
